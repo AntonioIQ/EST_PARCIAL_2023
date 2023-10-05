@@ -22,6 +22,7 @@ y el código comentado.
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, error=TRUE, message = FALSE)
 library(tidyverse)
+library(dplyr)
 ```
 
 ## Pruebas de hipótesis
@@ -37,7 +38,56 @@ zapatos
 
 1. Realiza una prueba de hipótesis visual y describe tus conclusiones (cuál es el
 nivel de significancia de la prueba?).
+`
+```{r}
+# Convertimos material a factor
+zapatos$material <- as.factor(zapatos$material)
 
+# Modificamos los niveles de material
+levels(zapatos$material) <- c("A", "B")
+
+# Graficamos la distribución de los desgastes por material
+ggplot(zapatos, aes(x = material, y = desgaste)) +
+  geom_boxplot(aes(fill = material), alpha = 0.5) +
+  geom_jitter(aes(fill = material), alpha = 0.5) +
+  labs(title = "Distribución del desgaste por material",
+       x = "Material",
+       y = "Desgaste") +
+  facet_wrap(~ material)
+```
+```{r}
+# Reescribir el tibble con nombres "Material A" y "Material B"
+zapatos <- zapatos %>%
+  mutate(Material = ifelse(material == 1, "Material A", "Material B"))
+
+# Crear un gráfico de cuantiles para Material A
+quantile_plot_material_a <- ggplot(filter(zapatos, Material == "Material A"), aes(sample = desgaste)) +
+  geom_qq() +
+  geom_qq_line(color = "blue") +
+  labs(title = "Gráfico de Cuantiles para Material A")
+
+# Crear un gráfico de cuantiles para Material B
+quantile_plot_material_b <- ggplot(filter(zapatos, Material == "Material B"), aes(sample = desgaste)) +
+  geom_qq() +
+  geom_qq_line(color = "red") +
+  labs(title = "Gráfico de Cuantiles para Material B")
+
+# Crear un histograma para Material A
+histogram_material_a <- ggplot(filter(zapatos, Material == "Material A"), aes(x = desgaste)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  labs(title = "Histograma para Material A", x = "Desgaste", y = "Frecuencia")
+
+# Crear un histograma para Material B
+histogram_material_b <- ggplot(filter(zapatos, Material == "Material B"), aes(x = desgaste)) +
+  geom_histogram(binwidth = 1, fill = "red", color = "black") +
+  labs(title = "Histograma para Material B", x = "Desgaste", y = "Frecuencia")
+
+# Mostrar los gráficos de cuantiles y los histogramas
+print(quantile_plot_material_a)
+print(quantile_plot_material_b)
+print(histogram_material_a)
+print(histogram_material_b)
+```
 
 2. Realiza una prueba de permutaciones para la diferencia de las medias, escribe la hipótesis nula, la hipótesis alterna y tus conclusiones.
 
