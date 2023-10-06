@@ -110,6 +110,8 @@ La diferencia observada entre los materiales A y B es de 0.41 unidades, lo que s
 Los dos materiales parecen ser comparables en desgaste de zapatos. la diferencia observada sea debida al azar.
 
 
+
+
 2. Realiza una prueba de permutaciones para la diferencia de las medias, escribe la hipótesis nula, la hipótesis alterna y tus conclusiones.
 
 3. Después de discutir con los responsables del proyecto descubrimos que nos 
