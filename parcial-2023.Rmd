@@ -56,38 +56,59 @@ ggplot(zapatos, aes(x = material, y = desgaste)) +
   facet_wrap(~ material)
 ```
 ```{r}
-# Reescribir el tibble con nombres "Material A" y "Material B"
-zapatos <- zapatos %>%
-  mutate(Material = ifelse(material == 1, "Material A", "Material B"))
+# Cargamos las bibliotecas necesarias
+library(readr)
+library(dplyr)
+library(ggplot2)
 
-# Crear un gráfico de cuantiles para Material A
-quantile_plot_material_a <- ggplot(filter(zapatos, Material == "Material A"), aes(sample = desgaste)) +
-  geom_qq() +
-  geom_qq_line(color = "blue") +
-  labs(title = "Gráfico de Cuantiles para Material A")
 
-# Crear un gráfico de cuantiles para Material B
-quantile_plot_material_b <- ggplot(filter(zapatos, Material == "Material B"), aes(sample = desgaste)) +
-  geom_qq() +
-  geom_qq_line(color = "red") +
-  labs(title = "Gráfico de Cuantiles para Material B")
+# Cargamos los datos
+zapatos <- read_csv("datos/zapatos-1.csv")
 
-# Crear un histograma para Material A
-histogram_material_a <- ggplot(filter(zapatos, Material == "Material A"), aes(x = desgaste)) +
-  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
-  labs(title = "Histograma para Material A", x = "Desgaste", y = "Frecuencia")
+# Calculamos la diferencia observada entre los materiales A y B
+diferencia_obs <- zapatos %>%
+  group_by(material) %>%
+  summarise(media_desgaste = mean(desgaste)) %>%
+  arrange(material) %>%
+  pull(media_desgaste) %>%
+  diff()
 
-# Crear un histograma para Material B
-histogram_material_b <- ggplot(filter(zapatos, Material == "Material B"), aes(x = desgaste)) +
-  geom_histogram(binwidth = 1, fill = "red", color = "black") +
-  labs(title = "Histograma para Material B", x = "Desgaste", y = "Frecuencia")
+# Creamos una función para realizar la prueba del lineup
+lineup_test <- function(data, n_perm = 10000) {
+  set.seed(123) # Establecemos una semilla para reproducibilidad
+  obs_stat <- abs(diff(data))
+  perm_stats <- replicate(n_perm, {
+    permuted_data <- sample(data) # Permutamos los datos
+    perm_stat <- abs(diff(permuted_data))
+    perm_stat
+  })
+  
+  p_value <- mean(perm_stats >= obs_stat)
+  return(p_value)
+}
 
-# Mostrar los gráficos de cuantiles y los histogramas
-print(quantile_plot_material_a)
-print(quantile_plot_material_b)
-print(histogram_material_a)
-print(histogram_material_b)
+# Realizamos la prueba de hipótesis visual
+n_permutations <- 10000
+p_value <- lineup_test(zapatos$desgaste, n_permutations)
+
+# Nivel de significancia de la prueba
+alpha <- 0.05
+
+# Evaluamos si rechazamos o no la hipótesis nula
+if (p_value <= alpha) {
+  conclusion <- "Rechazamos la hipótesis nula"
+} else {
+  conclusion <- "No tenemos suficiente evidencia para rechazar la hipótesis nula"
+}
+
+# Imprimimos los resultados
+cat("Diferencia observada entre A y B:", diferencia_obs, "\n")
+cat("Valor p (nivel de significancia):", p_value, "\n")
+cat("Conclusión:", conclusion, "\n")
 ```
+La diferencia observada entre los materiales A y B es de 0.41 unidades, lo que significa que los zapatos hechos con el material A tienen un desgaste 0.41 unidades mayor que los zapatos hechos con el material B. Sin embargo, el valor p calculado es de 0.664, que es mayor que el nivel de significancia establecido en 0.05. Esto significa que es más probable que la diferencia observada sea debida al azar que a una diferencia real entre los dos materiales.
+Los dos materiales parecen ser comparables en desgaste de zapatos. la diferencia observada sea debida al azar.
+
 
 2. Realiza una prueba de permutaciones para la diferencia de las medias, escribe la hipótesis nula, la hipótesis alterna y tus conclusiones.
 
