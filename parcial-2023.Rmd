@@ -35,16 +35,21 @@ Nos dan el siguiente conjunto de datos:
 zapatos <- read_csv("datos/zapatos-1.csv")
 zapatos
 ```
+```{r}
+# Convertimos material a factor
+zapatos <- zapatos %>%
+mutate(material = case_when(
+    material == 1 ~ "A",
+    material == 2 ~ "B",
+    TRUE ~ as.character(material)  # Mantener otros valores como están
+  ))
+zapatos
+```
 
 1. Realiza una prueba de hipótesis visual y describe tus conclusiones (cuál es el
 nivel de significancia de la prueba?).
 `
 ```{r}
-# Convertimos material a factor
-zapatos$material <- as.factor(zapatos$material)
-
-# Modificamos los niveles de material
-levels(zapatos$material) <- c("A", "B")
 
 # Graficamos la distribución de los desgastes por material
 ggplot(zapatos, aes(x = material, y = desgaste)) +
@@ -57,35 +62,35 @@ ggplot(zapatos, aes(x = material, y = desgaste)) +
 ```
 ```{r}
 
-# Gráfico de densidad para material A
-ggplot(zapatos, aes(x = desgaste)) +
+library(ggplot2)
+
+# Gráfico de densidad para Material A
+ggplot(zapatos[zapatos$material == "A", ], aes(x = desgaste)) +
   geom_density(fill = "blue", alpha = 0.5) +
   labs(title = "Densidad de desgaste para Material A")
 
-# Gráfico de densidad para material B
-ggplot(zapatos, aes(x = desgaste)) +
+# Gráfico de densidad para Material B
+ggplot(zapatos[zapatos$material == "B", ], aes(x = desgaste)) +
   geom_density(fill = "red", alpha = 0.5) +
   labs(title = "Densidad de desgaste para Material B")
 
-# Histograma para material A
-ggplot(zapatos, aes(x = desgaste)) +
+# Histograma para Material A
+ggplot(zapatos[zapatos$material == "A", ], aes(x = desgaste)) +
   geom_histogram(binwidth = 1, fill = "blue", alpha = 0.5) +
   labs(title = "Histograma de desgaste para Material A")
 
-# Histograma para material B
-ggplot(zapatos, aes(x = desgaste)) +
+# Histograma para Material B
+ggplot(zapatos[zapatos$material == "B", ], aes(x = desgaste)) +
   geom_histogram(binwidth = 1, fill = "red", alpha = 0.5) +
   labs(title = "Histograma de desgaste para Material B")
 
-# Gráfico Q-Q para material A
+# Gráfico Q-Q para Material A
 qqnorm(zapatos$desgaste[zapatos$material == "A"], col = "blue")
 qqline(zapatos$desgaste[zapatos$material == "A"], col = "blue")
 
-# Gráfico Q-Q para material B
+# Gráfico Q-Q para Material B
 qqnorm(zapatos$desgaste[zapatos$material == "B"], col = "red")
 qqline(zapatos$desgaste[zapatos$material == "B"], col = "red")
-
-
 
 ```
 
@@ -127,6 +132,7 @@ Prueba t de Student:
 Estadístico t = -0.36891
 Grados de libertad (df) = 18
 Valor p = 0.7165
+
 *Resultado:* No hay evidencia suficiente para rechazar la hipótesis nula de que las medias de desgaste son iguales entre los materiales A y B.No hay diferencias significativas en las medias de desgaste entre los materiales A y B.
 
 Los datos de desgaste para los materiales A y B muestran igualdad de varianzas y no muestran diferencias significativas en las medias de desgaste. Por lo tanto, los dos materiales parecen comportarse de manera similar en términos de desgaste.
@@ -141,9 +147,6 @@ library(readr)
 library(dplyr)
 library(ggplot2)
 
-
-# Cargamos los datos
-zapatos <- read_csv("datos/zapatos-1.csv")
 
 # Calculamos la diferencia observada entre los materiales A y B
 diferencia_obs <- zapatos %>%
@@ -187,7 +190,7 @@ cat("Valor p (nivel de significancia):", p_value, "\n")
 cat("Conclusión:", conclusion, "\n")
 ```
 
-La diferencia observada entre los materiales A y B es de 0.41 unidades, lo que significa que los zapatos hechos con el material A tienen un desgaste 0.41 unidades mayor que los zapatos hechos con el material B. Sin embargo, el valor p calculado es de 0.664, que es mayor que el nivel de significancia establecido en 0.05. Esto significa que es más probable que la diferencia observada sea debida al azar que a una diferencia real entre los dos materiales.
+La diferencia observada entre los materiales A y B es de 0.41 unidades, lo que significa que los zapatos hechos con el material A tienen un desgaste 0.41 unidades mayor que los zapatos hechos con el material B. Sin embargo, el valor p calculado es de 0.66, que es mayor que el nivel de significancia establecido en 0.05. Esto significa que es más probable que la diferencia observada sea debida al azar que a una diferencia real entre los dos materiales.
 Los dos materiales parecen ser comparables en desgaste de zapatos. la diferencia observada sea debida al azar.
 
 
@@ -199,8 +202,8 @@ faltaba conocer detalles del proceso generador de datos: el experimento se reali
 tus conclusiones?
 
 ```{r}
-zapatos <- read_csv("datos/zapatos-2.csv")
-zapatos
+zapatos2 <- read_csv("datos/zapatos-2.csv")
+zapatos2
 ```
 
 sí hay repercusiones en el diseño del estudio. 
@@ -215,7 +218,7 @@ la función "lineup_test" y el procedimiento general se mantendrán similares, p
 
 ```{r}
 # Calculamos la diferencia observada entre los materiales A y B
-diferencia_obs <- zapatos %>%
+diferencia_obs <- zapatos2 %>%
   group_by(material) %>%
   summarise(media_desgaste = mean(desgaste)) %>%
   arrange(material) %>%
