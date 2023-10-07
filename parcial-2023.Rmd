@@ -348,7 +348,24 @@ muestra_tidy <- muestra |>
   group_by(ESTRATO) |> 
   mutate(n = n()) |> 
   ungroup()
+head(muestra)
 ```
+```{r}
+# Calcular el estimador de razón combinado
+# Asegurémonos de que las columnas necesarias sean numéricas
+computos$NULOS <- as.numeric(computos$NULOS)
+computos$TOTAL_OPINIONES <- as.numeric(computos$TOTAL_OPINIONES)
+
+# Calcular el estimador de razón combinado
+estimador_razon_combinado <- computos %>%
+  group_by(ESTRATO) %>%
+  summarise(Y_hi = sum(NULOS), X_hi = sum(TOTAL_OPINIONES), N_h = n_distinct(ID)) %>%
+  mutate(estimador = (sum((N_h / n()) * Y_hi)) / sum((N_h / n()) * X_hi))
+
+# Imprimir el estimador
+estimador_razon_combinado
+```
+
 
 2. Utiliza **bootstrap** para calcular el error estándar, y reporta tu 
 estimación del error.
@@ -357,9 +374,85 @@ estimación del error.
     metodología que se utilizó en la selección de la muestra original, en este
     caso implica que para cada remuestra debes tomar muestra aleatoria independiente
     dentro de cada estrato.
+    
+```{r}
+# Establecer una semilla aleatoria para reproducibilidad
+set.seed(123)
+
+# Número de muestras bootstrap a generar
+n_bootstrap_samples <- 1000
+
+# Crear una función que calcule el estimador de razón combinado dentro de un estrato
+calcular_estimador_razon_combinado <- function(data) {
+  return(sum((data$NULOS / data$LISTA_NOMINAL) * data$TOTAL_OPINIONES) / sum((data$NULOS / data$LISTA_NOMINAL)))
+}
+
+# Crear una función que realice el muestreo bootstrap estratificado
+bootstrap_stratified <- function(data, n_samples) {
+  # Inicializar un vector para almacenar los resultados bootstrap
+  bootstrap_results <- numeric(n_samples)
+  
+  for (i in 1:n_samples) {
+    # Realizar muestreo bootstrap dentro de cada estrato
+    bootstrap_sample <- data %>%
+      group_by(ESTRATO) %>%
+      sample_frac(size = 1, replace = TRUE) %>%
+      ungroup()
+    
+    # Calcular el estimador de razón combinado en la muestra bootstrap
+    estimador_bootstrap <- calcular_estimador_razon_combinado(bootstrap_sample)
+    
+    # Almacenar el resultado en el vector
+    bootstrap_results[i] <- estimador_bootstrap
+  }
+  
+  return(bootstrap_results)
+}
+
+# Realizar el muestreo bootstrap estratificado
+bootstrap_results <- bootstrap_stratified(computos, n_bootstrap_samples)
+
+# Calcular el error estándar usando los resultados de bootstrap
+bootstrap_se <- sd(bootstrap_results, na.rm = TRUE)
+
+# Imprimir el error estándar
+cat("Error estándar (Bootstrap Estratificado):", bootstrap_se, "\n")
+```
 
 3. Construye un intervalo del 95% de confianza utilizando el método normal. Revisa 
 si el supuesto de normalidad es razonable.
+
+```{r}
+# Calcular el estimador de razón combinado
+computos$NULOS <- as.numeric(computos$NULOS)
+computos$TOTAL_OPINIONES <- as.numeric(computos$TOTAL_OPINIONES)
+
+estimador_razon_combinado <- computos %>%
+  group_by(ESTRATO) %>%
+  summarise(Y_hi = sum(NULOS), X_hi = sum(TOTAL_OPINIONES), N_h = n_distinct(ID)) %>%
+  mutate(estimador = (sum((N_h / n()) * Y_hi)) / sum((N_h / n()) * X_hi))
+
+# Calcular el error estándar
+error_estandar <- sqrt(var(bootstrap_results, na.rm = TRUE))
+
+# Calcular el intervalo de confianza usando el método normal
+z_score <- qnorm(0.975) # Z-score para un intervalo de confianza del 95%
+intervalo_confianza <- c(estimador_razon_combinado$estimador - z_score * error_estandar,
+                         estimador_razon_combinado$estimador + z_score * error_estandar)
+
+# Imprimir el intervalo de confianza
+cat("Intervalo de Confianza (Método Normal): [", intervalo_confianza[1], ", ", intervalo_confianza[2], "]\n")
+
+```
+
+```{r}
+# Verificar si hay NA en los resultados de bootstrap
+anyNA(bootstrap_results)
+
+# Resumen de los resultados de bootstrap
+summary(bootstrap_results)
+
+```
 
 4. Reporta tus intervalos en una tabla. Compara la longitud de los 3 intervalos y 
 describe que observas.
