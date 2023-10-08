@@ -442,7 +442,6 @@ intervalo_confianza <- c(estimador_razon_combinado$estimador - z_score * error_e
 
 # Imprimir el intervalo de confianza
 cat("Intervalo de Confianza (Método Normal): [", intervalo_confianza[1], ", ", intervalo_confianza[2], "]\n")
-
 ```
 
 ```{r}
