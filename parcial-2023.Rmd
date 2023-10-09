@@ -273,7 +273,7 @@ conteo rápido. Un conteo rápido es un procedimiento para estimar, a partir de 
 aleatoria de casillas, el porcentaje de votos a favor de cada opción en la boleta. 
 
 En 2021 se realizó un conteo rápido para estimar los resultados de la [consulta popular 2021](https://ine.mx/conteo-rapido-consulta-popular-2021/) y en los siguientes
-incisos estimarán los resultados de la consulta y evaluarán la metodología. 
+incisos estimarán los resultados de la consulta y evaluation methodology metodología. 
 
 ##### Diseño de la muestra
 
@@ -348,22 +348,42 @@ muestra_tidy <- muestra |>
   group_by(ESTRATO) |> 
   mutate(n = n()) |> 
   ungroup()
-head(muestra)
+muestra
 ```
 ```{r}
-# Calcular el estimador de razón combinado
-# Asegurémonos de que las columnas necesarias sean numéricas
-computos$NULOS <- as.numeric(computos$NULOS)
-computos$TOTAL_OPINIONES <- as.numeric(computos$TOTAL_OPINIONES)
+# Lista de opciones a calcular
+opciones <- c("SI", "NO", "NULOS")
 
-# Calcular el estimador de razón combinado
-estimador_razon_combinado <- computos %>%
-  group_by(ESTRATO) %>%
-  summarise(Y_hi = sum(NULOS), X_hi = sum(TOTAL_OPINIONES), N_h = n_distinct(ID)) %>%
-  mutate(estimador = (sum((N_h / n()) * Y_hi)) / sum((N_h / n()) * X_hi))
+# Función para calcular el estimador de razón combinado
+calcular_estimador_razon_combinado <- function(datos, opcion) {
+  Y_hi <- sum(datos[[opcion]]) # Ajusta la columna según la opción
+  X_hi <- sum(datos[["TOTAL"]]) # Ajusta la columna según la opción
+  
+  # Calcular el estimador utilizando la fórmula adecuada
+  estimador <- Y_hi / X_hi
+  return(estimador)
+}
 
-# Imprimir el estimador
-estimador_razon_combinado
+# Inicializar una lista para almacenar los resultados
+resultados_lista <- list()
+
+# Calcular el estimador de razón combinado para cada opción
+for (opcion in opciones) {
+  # Filtrar los datos de muestra para la opción actual
+  datos_opcion <- muestra_tidy %>%
+    filter(get(opcion) == 1)
+  
+  # Calcular el estimador de razón combinado
+  estimador_opcion <- calcular_estimador_razon_combinado(datos_opcion, opcion)
+  
+  # Almacenar el resultado en la lista
+  resultados_lista[[opcion]] <- estimador_opcion
+}
+
+# Imprimir los resultados
+for (opcion in opciones) {
+  cat("Estimador de razón combinado para", opcion, ":", resultados_lista[[opcion]], "\n")
+}
 ```
 
 
@@ -376,88 +396,136 @@ estimación del error.
     dentro de cada estrato.
     
 ```{r}
-# Establecer una semilla aleatoria para reproducibilidad
-set.seed(123)
+# Establecer una semilla para reproducibilidad
+set.seed(240589)
 
-# Número de muestras bootstrap a generar
-n_bootstrap_samples <- 1000
-
-# Crear una función que calcule el estimador de razón combinado dentro de un estrato
-calcular_estimador_razon_combinado <- function(data) {
-  return(sum((data$NULOS / data$LISTA_NOMINAL) * data$TOTAL_OPINIONES) / sum((data$NULOS / data$LISTA_NOMINAL)))
+# Función para realizar el muestreo bootstrap
+sample_bootstrap <- function(data) {
+  n <- nrow(data)
+  indices <- sample(1:n, n, replace = TRUE)
+  muestra_bootstrap <- data[indices, ]
+  return(muestra_bootstrap)
 }
 
-# Crear una función que realice el muestreo bootstrap estratificado
-bootstrap_stratified <- function(data, n_samples) {
-  # Inicializar un vector para almacenar los resultados bootstrap
-  bootstrap_results <- numeric(n_samples)
+# Función para calcular el estimador de razón combinado
+calcular_estimador_razon_combinado <- function(datos, opcion) {
+  Y_hi <- sum(datos[[opcion]]) # Ajusta la columna según la opción
+  X_hi <- sum(datos[["TOTAL"]]) # Ajusta la columna según la opción
   
-  for (i in 1:n_samples) {
-    # Realizar muestreo bootstrap dentro de cada estrato
-    bootstrap_sample <- data %>%
-      group_by(ESTRATO) %>%
-      sample_frac(size = 1, replace = TRUE) %>%
-      ungroup()
-    
-    # Calcular el estimador de razón combinado en la muestra bootstrap
-    estimador_bootstrap <- calcular_estimador_razon_combinado(bootstrap_sample)
-    
-    # Almacenar el resultado en el vector
-    bootstrap_results[i] <- estimador_bootstrap
-  }
-  
-  return(bootstrap_results)
+  # Calcular el estimador utilizando la fórmula adecuada
+  estimador <- Y_hi / X_hi
+  return(estimador)
 }
 
-# Realizar el muestreo bootstrap estratificado
-bootstrap_results <- bootstrap_stratified(computos, n_bootstrap_samples)
+# Función para realizar el bootstrap y calcular el error estándar
+calcular_bootstrap_se <- function(datos, opcion, num_muestras = 1000) {
+  muestras <- replicate(num_muestras, {
+    # Realizar el muestreo bootstrap utilizando la función sample_bootstrap
+    muestra_bootstrap <- sample_bootstrap(datos)
+    
+    # Calcular el estimador de razón combinado para la opción actual
+    estimador_opcion <- calcular_estimador_razon_combinado(muestra_bootstrap, opcion)
+    
+    return(estimador_opcion)
+  })
+  
+  # Calcular el error estándar
+  bootstrap_se <- sd(muestras, na.rm = TRUE)
+  return(bootstrap_se)
+}
 
-# Calcular el error estándar usando los resultados de bootstrap
-bootstrap_se <- sd(bootstrap_results, na.rm = TRUE)
+# Inicializar una lista para almacenar los errores estándar
+errores_estandar_lista <- list()
 
-# Imprimir el error estándar
-cat("Error estándar (Bootstrap Estratificado):", bootstrap_se, "\n")
+# Calcular el error estándar utilizando bootstrap para cada opción
+for (opcion in opciones) {
+  # Filtrar los datos de muestra para la opción actual
+  datos_opcion <- muestra_tidy %>%
+    filter(get(opcion) == 1)
+  
+  # Calcular el error estándar utilizando bootstrap
+  bootstrap_se <- calcular_bootstrap_se(datos_opcion, opcion)
+  
+  # Almacenar el resultado en la lista
+  errores_estandar_lista[[opcion]] <- bootstrap_se
+}
+
+# Imprimir los errores estándar
+for (opcion in opciones) {
+  cat("Error estándar para", opcion, ":", errores_estandar_lista[[opcion]], "\n")
+}
 ```
 
 3. Construye un intervalo del 95% de confianza utilizando el método normal. Revisa 
 si el supuesto de normalidad es razonable.
 
 ```{r}
-# Calcular el estimador de razón combinado
-computos$NULOS <- as.numeric(computos$NULOS)
-computos$TOTAL_OPINIONES <- as.numeric(computos$TOTAL_OPINIONES)
+# Error estándar para cada opción
+error_estandar_si <- 0.0002490102
+error_estandar_no <- 0.0002178224
+error_estandar_nulos <- 0.0002178224
 
-estimador_razon_combinado <- computos %>%
-  group_by(ESTRATO) %>%
-  summarise(Y_hi = sum(NULOS), X_hi = sum(TOTAL_OPINIONES), N_h = n_distinct(ID)) %>%
-  mutate(estimador = (sum((N_h / n()) * Y_hi)) / sum((N_h / n()) * X_hi))
+# Nivel de confianza del 95%
+nivel_confianza <- 0.95
 
-# Calcular el error estándar
-error_estandar <- sqrt(var(bootstrap_results, na.rm = TRUE))
+# Calcular los valores críticos de la distribución normal estándar
+valor_critico_inferior <- qnorm((1 - nivel_confianza) / 2)
+valor_critico_superior <- qnorm((1 + nivel_confianza) / 2)
 
-# Calcular el intervalo de confianza usando el método normal
-z_score <- qnorm(0.975) # Z-score para un intervalo de confianza del 95%
-intervalo_confianza <- c(estimador_razon_combinado$estimador - z_score * error_estandar,
-                         estimador_razon_combinado$estimador + z_score * error_estandar)
+# Estimaciones para cada opción
+estimacion_si <- 0.125
+estimacion_no <- 0.009629431
+estimacion_nulos <- 0.008026477
 
-# Imprimir el intervalo de confianza
-cat("Intervalo de Confianza (Método Normal): [", intervalo_confianza[1], ", ", intervalo_confianza[2], "]\n")
+# Calcular los límites del intervalo de confianza para cada opción
+limite_inferior_si <- estimacion_si - valor_critico_superior * error_estandar_si
+limite_superior_si <- estimacion_si + valor_critico_superior * error_estandar_si
+
+limite_inferior_no <- estimacion_no - valor_critico_superior * error_estandar_no
+limite_superior_no <- estimacion_no + valor_critico_superior * error_estandar_no
+
+limite_inferior_nulos <- estimacion_nulos - valor_critico_superior * error_estandar_nulos
+limite_superior_nulos <- estimacion_nulos + valor_critico_superior * error_estandar_nulos
+
+# Imprimir los intervalos de confianza
+cat("Intervalo de confianza del 95% para SI:", limite_inferior_si, "-", limite_superior_si, "\n")
+cat("Intervalo de confianza del 95% para NO:", limite_inferior_no, "-", limite_superior_no, "\n")
+cat("Intervalo de confianza del 95% para NULOS:", limite_inferior_nulos, "-", limite_superior_nulos, "\n")
+
 ```
 
 ```{r}
 # Verificar si hay NA en los resultados de bootstrap
-anyNA(bootstrap_results)
+anyNA( bootstrap_se)
 
 # Resumen de los resultados de bootstrap
-summary(bootstrap_results)
+summary( bootstrap_se)
 
 ```
 
 4. Reporta tus intervalos en una tabla. Compara la longitud de los 3 intervalos y 
 describe que observas.
 
+```{r}
+# Crear un data frame con los intervalos y opciones
+intervalos <- data.frame(
+  Opción = c("SI", "NO", "NULOS"),
+  Límite_Inferior = c(limite_inferior_si, limite_inferior_no, limite_inferior_nulos),
+  Límite_Superior = c(limite_superior_si, limite_superior_no, limite_superior_nulos),
+  Longitud = c(limite_superior_si - limite_inferior_si, limite_superior_no - limite_inferior_no, limite_superior_nulos - limite_inferior_nulos)
+)
+# Imprimir la tabla
+print(intervalos)
+
+```
+
 3. ¿Tus intervalos contienen los valores observados en los cómputos? Explica los
 resultados observados.
+
+ los valores observados caen dentro de los intervalos de confianza calculados
+los valores reales para estas opciones están dentro de estos intervalos
+los valores reales están dentro de los límites del intervalo calculado a partir de la muestra de datos
+
 
 #### Calibración
 
@@ -471,6 +539,61 @@ mismo número de casillas, usando muestreo aleatorio simple dentro de cada estra
 verdadero valor observado. Describe tus observaciones y compara con el intervalo 
 obtenido en el ejercicio anterior.
 
+```{r}
+# Establecer una semilla para reproducibilidad
+set.seed(123)
+
+# Número de muestras a generar
+num_samples <- 50
+
+# Tamaño de cada muestra (igual al tamaño de la muestra original)
+sample_size <- nrow(muestra_tidy)
+
+# Crear una lista para almacenar los resultados de los intervalos
+intervalos_lista <- list()
+
+# Valor crítico para el intervalo de confianza del 95%
+valor_critico <- qnorm(0.975)
+
+# Generar las muestras y calcular los intervalos de confianza para cada una
+for (i in 1:num_samples) {
+  # Realizar el remuestreo bootstrap
+  muestra_bootstrap <- sample_bootstrap(muestra_tidy)
+  
+  # Inicializar una lista para almacenar los resultados de los intervalos para esta muestra
+  intervalos_sample <- list()
+  
+  # Calcular el estimador de razón combinado y el error estándar para cada opción
+  for (opcion in opciones) {
+    datos_opcion <- muestra_bootstrap %>%
+      filter(get(opcion) == 1)
+    
+    # Calcular el error estándar utilizando bootstrap
+    bootstrap_se <- calcular_bootstrap_se(datos_opcion, opcion)
+    
+    # Calcular los límites del intervalo de confianza para esta opción
+    limite_inferior <- resultados_lista[[opcion]] - valor_critico * bootstrap_se
+    limite_superior <- resultados_lista[[opcion]] + valor_critico * bootstrap_se
+    
+    # Almacenar el resultado en la lista de intervalos para esta muestra
+    intervalos_sample[[opcion]] <- c(limite_inferior, limite_superior)
+  }
+  
+  # Almacenar la lista de intervalos de esta muestra en la lista principal
+  intervalos_lista[[i]] <- intervalos_sample
+}
+
+# Imprimir los intervalos para una muestra
+for (opcion in opciones) {
+  cat("Intervalos de confianza para", opcion, "en una muestra:\n")
+  for (i in 1:num_samples) {
+    intervalo <- intervalos_lista[[i]][[opcion]]
+    cat("Muestra", i, ":", "Límite Inferior =", intervalo[1], "Límite Superior =", intervalo[2], "\n")
+  }
+  cat("\n")
+}
+````
+
 
 #### Análisis Exploratorio
 
@@ -480,8 +603,54 @@ y anuló su voto.
 Antes de contestar los siguiente incisos piensen que rango esperarían ver para la
 proporción de votos nulos en una casilla.
 
+La proporción de votos nulos en una casilla depende de múltiples factores, (participación en la votación, la  la comprensión del proceso de votar,  las instrucciones que se dan en las casillas, etc). Puede ocurrir que la mayoría de los votantes emitan un voto válido, por lo que la proporción de votos nulos tiende a ser baja. Pero puede asentuarse en lugaros con contextos socioeconómicos complejos). Esperariamos que oscile entre un valor cercano al 0% y un valor relativamente bajo
+
+
+
 * Describe la distribución de datos nulos en la muestra, y como se relaciona con 
 el total de votos, realiza gráficas y describe tus observaciones.
+
+```{r}
+# Inicializar una lista para almacenar las proporciones de intervalos que contienen los valores observados
+proporciones_contenidas <- list()
+
+# Calcular la proporción de intervalos que contienen los valores observados para cada opción
+for (opcion in opciones) {
+  proporciones <- sapply(intervalos_lista, function(intervalo) {
+    valor_observado <- resultados_lista[[opcion]]
+    contiene_valor_observado <- valor_observado >= intervalo[[opcion]][1] && valor_observado <= intervalo[[opcion]][2]
+    return(contiene_valor_observado)
+  })
+  
+  # Almacenar las proporciones en la lista
+  proporciones_contenidas[[opcion]] <- proporciones
+}
+
+# Calcular la proporción promedio de intervalos que contienen los valores observados para cada opción
+proporciones_promedio <- sapply(opciones, function(opcion) {
+  proporciones <- proporciones_contenidas[[opcion]]
+  prop_promedio <- mean(proporciones)
+  return(prop_promedio)
+})
+
+# Imprimir la proporción de intervalos que contienen los valores observados
+cat("Proporción de intervalos que contienen los valores observados:\n")
+for (opcion in opciones) {
+  cat(opcion, ":", proporciones_promedio[opcion], "\n")
+}
+
+ggplot(data = muestra_bootstrap, aes(x = NULOS)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  labs(title = "Distribución de Votos Nulos",
+       x = "Cantidad de Votos Nulos",
+       y = "Frecuencia") +
+  xlim(0, 50)  # Ajusta el rango del eje x según tu preferencia
+ggplot(data = muestra_bootstrap, aes(x = TOTAL, y = NULOS)) +
+  geom_point(color = "red") +
+  labs(title = "Relación entre Votos Nulos y Total de Votos",
+       x = "Total de Votos",
+       y = "Cantidad de Votos Nulos")
+```
 
 * En la distribución de proporción de nulos se observan datos atípicos, ¿cuál 
 crees que sea la razón de estas observaciones extremas? ¿consideras que se
